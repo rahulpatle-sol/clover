@@ -21,7 +21,8 @@ export default function RegisterPage() {
     setError('')
     const { error } = await supabase.auth.signUp({
       email, password,
-      options: { data: { full_name: fullName }, emailRedirectTo: `${window.location.origin}/dashboard` }
+      options: { data: { full_name: fullName },// Ye hoga abhi (wrong)
+emailRedirectTo: `${window.location.origin}/dashboard` }
     })
     if (error) { setError(error.message); setLoading(false); return }
     setSuccess(true)
