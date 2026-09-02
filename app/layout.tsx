@@ -19,12 +19,28 @@ export const metadata: Metadata = {
     description: 'Upload your resume, get skill-matched job recommendations, and apply in one click.',
   },
   robots: { index: true, follow: true },
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/apple-touch-icon.svg',
+    other: [
+      { rel: 'icon', type: 'image/svg+xml', url: '/favicon.svg' },
+      { rel: 'manifest', url: '/manifest.json' },
+    ],
+  },
+  manifest: '/manifest.json',
+  themeColor: '#1a7a4a',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      </head>
+      <body className="font-sans antialiased">{children}</body>
     </html>
   )
 }

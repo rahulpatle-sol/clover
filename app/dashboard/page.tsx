@@ -1,10 +1,11 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo ,useCallback} from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import gsap from 'gsap'
 import Link from 'next/link'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts'
 
 const STATUSES = ['saved','applied','interview','offer','rejected']
 const STATUS_COLOR: Record<string,string> = {
@@ -63,13 +64,83 @@ export default function DashboardPage() {
     setNote(null)
   }
 
-  const byStatus = (s: string) => apps.filter(a => a.status === s)
+  const byStatus = useCallback((s: string) => apps.filter(a => a.status === s), [apps])
   const appliedThisWeek = apps.filter(a => {
     const d = new Date(a.created_at)
     const now = new Date()
     const diff = (now.getTime() - d.getTime()) / 86400000
     return diff <= 7 && a.status !== 'saved'
   }).length
+
+  const weeklyData = useMemo(() => {
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+    const now = new Date()
+    const dayOfWeek = now.getDay()
+    const result = days.map((day, i) => {
+      const targetDay = (dayOfWeek + 6 - i) % 7
+      const date = new Date(now)
+      date.setDate(now.getDate() - targetDay)
+      date.setHours(0,0,0,0)
+      const nextDate = new Date(date)
+      nextDate.setDate(date.getDate() + 1)
+      const count = apps.filter(a => {
+        const created = new Date(a.created_at)
+        return created >= date && created < nextDate && a.status !== 'saved'
+      }).length
+      return { day, count }
+    }).reverse()
+    return result
+  }, [apps])
+
+  const statusData = useMemo(() => {
+    const statuses = ['applied','interview','offer','rejected']
+    return statuses.map(s => ({
+      name: s.charAt(0).toUpperCase() + s.slice(1),
+      value: byStatus(s).length,
+      color: STATUS_COLOR[s]
+    })).filter(d => d.value > 0)
+  }, [byStatus])
+
+  const companyData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    apps.filter(a => a.status !== 'saved').forEach(a => {
+      counts[a.company] = (counts[a.company] || 0) + 1
+    })
+    return Object.entries(counts)
+      .sort((a,b) => b[1] - a[1])
+      .slice(0,5)
+      .map(([name, value]) => ({ name, value }))
+  }, [apps])
+
+  const responseRate = useMemo(() => {
+    const total = apps.filter(a => a.status !== 'saved').length
+    const responses = byStatus('interview').length + byStatus('offer').length
+    return total > 0 ? Math.round((responses / total) * 100) : 0
+  }, [apps, byStatus])
+
+  const skillsData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    apps.filter(a => a.status !== 'saved' && a.tags).forEach(a => {
+      a.tags.forEach((tag: string) => {
+        counts[tag] = (counts[tag] || 0) + 1
+      })
+    })
+    return Object.entries(counts)
+      .sort((a,b) => b[1] - a[1])
+      .slice(0,15)
+      .map(([name, value]) => ({ name, value }))
+  }, [apps])
+
+  const bestDayData = useMemo(() => {
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+    const responseDays = apps.filter(a => a.status === 'interview' || a.status === 'offer')
+    const counts = days.map(day => ({
+      day,
+      count: responseDays.filter(a => new Date(a.created_at).getDay() === days.indexOf(day)).length
+    }))
+    const maxDay = counts.reduce((max, d) => d.count > max.count ? d : max, counts[0])
+    return { counts, bestDay: maxDay }
+  }, [apps])
 
   const bg = darkMode ? '#0f172a' : '#f9fafb'
   const cardBg = darkMode ? '#1e293b' : '#fff'
@@ -171,6 +242,191 @@ export default function DashboardPage() {
               )}
             </div>
           ))}
+        </div>
+
+        {/* Analytics */}
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 16, marginTop: 32 }}>📈 Analytics</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(360px,1fr))', gap: 16, marginBottom: 16 }}>
+          {/* Weekly Apply Chart */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 20 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: text, marginBottom: 16 }}>Weekly Applications</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={weeklyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorApply" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#1a7a4a" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#1a7a4a" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e5e7eb'} vertical={false} />
+                <XAxis dataKey="day" stroke={muted} fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke={muted} fontSize={11} tickLine={false} axisLine={false} tickCount={4} />
+                <Tooltip
+                  contentStyle={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 8 }}
+                  labelStyle={{ color: text }}
+                  formatter={(value: number) => [value, 'applications']}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#1a7a4a"
+                  strokeWidth={2.5}
+                  dot={{ r: 5, strokeWidth: 2, fill: '#1a7a4a' }}
+                  activeDot={{ r: 7, strokeWidth: 2 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="count"
+                  stroke="transparent"
+                  strokeWidth={0}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Status Breakdown */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 20 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: text, marginBottom: 16 }}>Status Breakdown</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={statusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={3}
+                  dataKey="value"
+                  nameKey="name"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
+                  labelOffset={25}
+                >
+                  {statusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 8 }}
+                  formatter={(value: number) => [value, 'applications']}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: text }}>
+                  {apps.filter(a => a.status !== 'saved').length}
+                </div>
+                <div style={{ fontSize: 11, color: muted }}>Total applied</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Top Companies */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 20 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: text, marginBottom: 16 }}>Top Companies Applied</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={companyData} layout="vertical" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e5e7eb'} horizontal={false} />
+                <XAxis type="number" stroke={muted} fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={140}
+                  stroke={muted}
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: text }}
+                />
+                <Tooltip
+                  contentStyle={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 8 }}
+                  formatter={(value: number) => [value, 'applications']}
+                />
+                <Bar dataKey="value" fill="#1a7a4a" radius={[0, 4, 4, 0]} maxBarSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Response Rate */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: text, marginBottom: 16 }}>Response Rate</h3>
+            <div style={{ fontSize: 56, fontWeight: 700, color: '#1a7a4a', marginBottom: 8 }}>{responseRate}%</div>
+            <div style={{ fontSize: 13, color: muted, marginBottom: 16 }}>
+              {(byStatus('interview').length + byStatus('offer').length)} of {apps.filter(a => a.status !== 'saved').length} applications
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+              <span style={{ fontSize: 18 }}>📈</span>
+              <span style={{ fontSize: 13, color: muted }}>Trending</span>
+            </div>
+          </div>
+
+          {/* Skills in Demand */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 20 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: text, marginBottom: 16 }}>Skills in Demand</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {skillsData.length > 0 ? skillsData.map((skill) => (
+                <span
+                  key={skill.name}
+                  style={{
+                    background: darkMode ? '#1e293b' : '#f3f4f6',
+                    color: text,
+                    padding: '6px 12px',
+                    borderRadius: 20,
+                    fontSize: Math.max(11, 11 + (skill.value / (skillsData[0]?.value || 1)) * 8),
+                    fontWeight: 500,
+                    border: `1px solid ${border}`,
+                    opacity: 0.7 + (skill.value / (skillsData[0]?.value || 1)) * 0.3
+                  }}
+                >
+                  {skill.name}
+                </span>
+              )) : (
+                <span style={{ color: muted, fontSize: 13 }}>No skill data yet</span>
+              )}
+            </div>
+          </div>
+
+          {/* Best Day to Apply */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: text, marginBottom: 16 }}>Best Day to Apply</h3>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+              {bestDayData.counts.map(d => (
+                <div
+                  key={d.day}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 8,
+                    background: d.day === bestDayData.bestDay.day
+                      ? '#1a7a4a'
+                      : darkMode ? '#334155' : '#f3f4f6',
+                    color: d.day === bestDayData.bestDay.day ? '#fff' : text,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: d.count > 0 ? 1 : 0.4,
+                    border: d.day === bestDayData.bestDay.day ? '2px solid #1a7a4a' : 'none'
+                  }}
+                >
+                  <span style={{ fontSize: 10, fontWeight: 600 }}>{d.day.slice(0,3)}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>{d.count}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: 14, color: text, fontWeight: 500 }}>
+                {bestDayData.bestDay.count > 0
+                  ? `${bestDayData.bestDay.day} is your lucky day! 🍀`
+                  : 'Apply more to find your lucky day!'}
+              </p>
+              <p style={{ fontSize: 12, color: muted, marginTop: 4 }}>
+                {bestDayData.bestDay.count} responses on {bestDayData.bestDay.day}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Note Modal */}

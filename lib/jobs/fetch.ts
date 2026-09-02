@@ -79,6 +79,32 @@ async function fetchWeb3Career(): Promise<Job[]> {
   } catch { return [] }
 }
 
+// Adzuna India API - requires ADZUNA_APP_ID and ADZUNA_APP_KEY
+async function fetchAdzuna(role = 'developer', city = ''): Promise<Job[]> {
+  const appId = process.env.ADZUNA_APP_ID
+  const appKey = process.env.ADZUNA_APP_KEY
+  if (!appId || !appKey) return []
+  
+  try {
+    const where = city ? `&where=${encodeURIComponent(city)}` : ''
+    const url = `https://api.adzuna.com/v1/api/jobs/in/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=20&what=${encodeURIComponent(role)}${where}&content-type=application/json`
+    const res = await fetch(url, { next: { revalidate: 3600 } })
+    const data = await res.json()
+    return (data.results || []).map((j: any) => ({
+      id: `adzuna-${j.id}`,
+      title: j.title,
+      company: j.company?.display_name || 'Company',
+      location: j.location?.display_name || city || 'India',
+      url: j.redirect_url,
+      description: (j.description || '').slice(0, 300),
+      tags: j.category?.tag ? [j.category.tag] : [],
+      salary: j.salary_min ? `₹${Math.round(j.salary_min/100000)}–${Math.round((j.salary_max||j.salary_min*1.3)/100000)} LPA` : '',
+      source: 'Adzuna',
+      postedAt: j.created,
+    }))
+  } catch { return [] }
+}
+
 // Score job against user skills
 export function scoreJob(job: Job, userSkills: string[]): number {
   if (!userSkills.length) return 0
@@ -88,17 +114,19 @@ export function scoreJob(job: Job, userSkills: string[]): number {
 }
 
 // Main: fetch all sources and score
-export async function fetchAllJobs(userSkills: string[] = []): Promise<Job[]> {
-  const [remotive, arbeitnow, web3] = await Promise.allSettled([
+export async function fetchAllJobs(userSkills: string[] = [], city = '', role = ''): Promise<Job[]> {
+  const [remotive, arbeitnow, web3, adzuna] = await Promise.allSettled([
     fetchRemotive('developer'),
     fetchArbeitnow(),
     fetchWeb3Career(),
+    fetchAdzuna(role || 'developer', city),
   ])
 
   const all: Job[] = [
     ...(remotive.status === 'fulfilled' ? remotive.value : []),
     ...(arbeitnow.status === 'fulfilled' ? arbeitnow.value : []),
     ...(web3.status === 'fulfilled' ? web3.value : []),
+    ...(adzuna.status === 'fulfilled' ? adzuna.value : []),
   ]
 
   // Add match scores
@@ -110,3 +138,6 @@ export async function fetchAllJobs(userSkills: string[] = []): Promise<Job[]> {
   // Sort by match score
   return scored.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
 }
+
+export const INDIA_CITIES = ['All India','Mumbai','Delhi','Bangalore','Hyderabad','Pune','Chennai','Indore','Bhopal','Noida','Gurgaon','Ahmedabad','Kolkata']
+export const JOB_ROLES = ['All','Full Stack','Frontend','Backend','React','Node.js','Web3','Solana','DevOps','Mobile']

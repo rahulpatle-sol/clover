@@ -161,5 +161,26 @@ CREATE POLICY "Users manage own posts" ON public.referral_posts FOR ALL USING (a
 CREATE POLICY "Users manage own requests" ON public.referral_requests FOR ALL USING (auth.uid() = from_user_id OR auth.uid() = to_user_id);
 CREATE POLICY "Users manage own messages" ON public.messages FOR ALL USING (auth.uid() = from_id OR auth.uid() = to_id);
 
+-- Interview Prep Sessions
+CREATE TABLE IF NOT EXISTS public.interview_sessions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  job_title TEXT NOT NULL,
+  company TEXT NOT NULL,
+  job_description TEXT,
+  questions JSONB NOT NULL DEFAULT '[]',
+  current_index INTEGER DEFAULT 0,
+  practice_history JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS for interview_sessions
+ALTER TABLE public.interview_sessions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own interview sessions" ON public.interview_sessions FOR ALL USING (auth.uid() = user_id);
+
+CREATE TRIGGER interview_sessions_updated_at BEFORE UPDATE ON public.interview_sessions FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+
 -- Enable realtime for messages
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;

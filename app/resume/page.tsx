@@ -3,10 +3,25 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
+import {CardBg} from '@/components/CardBg'
+interface Profile {
+  id: string
+  full_name: string | null
+  email: string | null
+  resume_url: string | null
+  skills: string[]
+  job_title: string | null
+  resume_text: string | null
+}
+
+interface User {
+  id: string
+  email: string | null
+}
 
 export default function ResumePage() {
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [parsing, setParsing] = useState(false)
@@ -46,7 +61,7 @@ export default function ResumePage() {
       if (uploadErr) throw uploadErr
       const { data: { publicUrl } } = supabase.storage.from('resumes').getPublicUrl(path)
       await supabase.from('profiles').update({ resume_url: publicUrl }).eq('id', user.id)
-      setProfile((p: any) => ({ ...p, resume_url: publicUrl }))
+      setProfile((p: Profile | null) => ({ ...p, resume_url: publicUrl }))
       showToast('Resume uploaded! Parsing now...')
       setParsing(true)
       const formData = new FormData()
@@ -55,11 +70,11 @@ export default function ResumePage() {
       const data = await res.json()
       if (data.skills) {
         await supabase.from('profiles').update({ skills: data.skills, job_title: data.jobTitle, resume_text: data.text }).eq('id', user.id)
-        setProfile((p: any) => ({ ...p, skills: data.skills, job_title: data.jobTitle }))
+        setProfile((p: Profile | null) => ({ ...p, skills: data.skills, job_title: data.jobTitle }))
         showToast(`✅ Parsed! Found ${data.skills.length} skills`)
       }
-    } catch (err: any) {
-      showToast('Upload failed: ' + (err.message || 'Unknown error'))
+    } catch (err: unknown) {
+      showToast('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
     }
     setUploading(false)
     setParsing(false)
@@ -68,14 +83,14 @@ export default function ResumePage() {
   async function removeSkill(skill: string) {
     const newSkills = (profile?.skills || []).filter((s: string) => s !== skill)
     await supabase.from('profiles').update({ skills: newSkills }).eq('id', user.id)
-    setProfile((p: any) => ({ ...p, skills: newSkills }))
+    setProfile((p: Profile | null) => ({ ...p, skills: newSkills }))
   }
 
   async function addSkill(skill: string) {
     if (!skill.trim()) return
     const newSkills = [...(profile?.skills || []), skill.trim()]
     await supabase.from('profiles').update({ skills: newSkills }).eq('id', user.id)
-    setProfile((p: any) => ({ ...p, skills: newSkills }))
+    setProfile((p: Profile | null) => ({ ...p, skills: newSkills }))
   }
 
   const [newSkill, setNewSkill] = useState('')
@@ -162,12 +177,257 @@ export default function ResumePage() {
 
         {/* Job Title */}
         {profile?.job_title && (
-          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: '16px 20px' }}>
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
             <p style={{ fontSize: 13, color: muted, marginBottom: 4 }}>Detected job title</p>
             <p style={{ fontSize: 16, fontWeight: 600, color: text }}>💼 {profile.job_title}</p>
           </div>
         )}
+
+        {/* ATS Score Checker */}
+        <ATSScorer resumeText={profile?.resume_text || ''} darkMode={darkMode} />
+
       </main>
+    </div>
+  )
+}
+
+function ATSScorer({ resumeText, darkMode }: { resumeText: string; darkMode: boolean }) {
+  const [jobDescription, setJobDescription] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [result, setResult] = useState<ATSResult | null>(null)
+  const [error, setError] = useState('')
+
+  const cardBg = darkMode ? '#1e293b' : '#fff'
+  const border = darkMode ? '#334155' : '#e5e7eb'
+  const text = darkMode ? '#f1f5f9' : '#1a1a1a'
+  const muted = darkMode ? '#94a3b8' : '#888'
+
+  interface ATSResult {
+    score: number
+    matched: string[]
+    missing: string[]
+    suggestions: string[]
+    verdict: 'Strong' | 'Average' | 'Weak'
+  }
+
+  const getScoreColor = (score: number) => {
+    if (score < 40) return '#ef4444'
+    if (score < 70) return '#f59e0b'
+    return '#1a7a4a'
+  }
+
+  const getVerdictColor = (verdict: string) => {
+    if (verdict === 'Strong') return '#1a7a4a'
+    if (verdict === 'Average') return '#f59e0b'
+    return '#ef4444'
+  }
+
+  const animateScore = (score: number, onComplete: (value: number) => void) => {
+    let current = 0
+    const duration = 1200
+    const startTime = Date.now()
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      current = Math.round(score * eased)
+      onComplete(current)
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      } else {
+        onComplete(score)
+      }
+    }
+    animate()
+  }
+
+  const [animatedScore, setAnimatedScore] = useState(0)
+
+  useEffect(() => {
+    if (result) {
+      animateScore(result.score, setAnimatedScore)
+    }
+  }, [result])
+
+  async function handleCheck() {
+    if (!jobDescription.trim()) {
+      setError('Please paste a job description')
+      return
+    }
+    if (!resumeText.trim()) {
+      setError('No resume text found. Upload and parse a resume first.')
+      return
+    }
+
+    setChecking(true)
+    setError('')
+    setResult(null)
+    setAnimatedScore(0)
+
+    try {
+      const res = await fetch('/api/ats-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resumeText, jobDescription }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to check ATS score')
+      
+      setResult(data)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  return (
+    <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 24 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 16 }}>📊 ATS Score Checker</h2>
+      <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>
+        Paste a job description to see how well your resume matches
+      </p>
+
+      <textarea
+        value={jobDescription}
+        onChange={e => setJobDescription(e.target.value)}
+        placeholder="Paste job description here..."
+        style={{
+          width: '100%',
+          minHeight: 120,
+          padding: '12px 14px',
+          border: `1px solid ${border}`,
+          borderRadius: 8,
+          fontSize: 13,
+          fontFamily: 'inherit',
+          background: darkMode ? '#0f172a' : cardBg,
+          color: text,
+          outline: 'none',
+          resize: 'vertical',
+          boxSizing: 'border-box',
+          marginBottom: 12,
+        }}
+        disabled={checking}
+      />
+
+      <button
+        onClick={handleCheck}
+        disabled={checking || !jobDescription.trim()}
+        style={{
+          width: '100%',
+          padding: '12px',
+          background: checking ? '#94a3b8' : '#1a7a4a',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 8,
+          fontSize: 14,
+          fontWeight: 600,
+          cursor: checking ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {checking ? 'Checking...' : 'Check ATS Score'}
+      </button>
+
+      {error && (
+        <p style={{ color: '#ef4444', fontSize: 13, marginTop: 12 }}>{error}</p>
+      )}
+
+      {result && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20 }}>
+            <div style={{ position: 'relative', width: 80, height: 80 }}>
+              <svg width="80" height="80" style={{ transform: 'rotate(-90deg)' }}>
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="34"
+                  stroke={border}
+                  strokeWidth="6"
+                  fill="none"
+                />
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="34"
+                  stroke={getScoreColor(result.score)}
+                  strokeWidth="6"
+                  fill="none"
+                  strokeDasharray={213.6}
+                  strokeDashoffset={213.6 - (animatedScore / 100) * 213.6}
+                  strokeLinecap="round"
+                  style={{ transition: 'stroke-dashoffset 0.3s ease' }}
+                />
+              </svg>
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'column',
+              }}>
+                <span style={{ fontSize: 22, fontWeight: 700, color: getScoreColor(result.score) }}>
+                  {animatedScore}
+                </span>
+                <span style={{ fontSize: 11, color: muted }}>ATS Score</span>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: getVerdictColor(result.verdict), textTransform: 'uppercase', letterSpacing: 1 }}>
+                {result.verdict}
+              </div>
+              <div style={{ fontSize: 13, color: muted, marginTop: 4 }}>
+                {result.verdict === 'Strong' && 'Great match! Your resume aligns well with this role.'}
+                {result.verdict === 'Average' && 'Decent match. Consider adding missing keywords.'}
+                {result.verdict === 'Weak' && 'Low match. Significant gaps to address.'}
+              </div>
+            </div>
+          </div>
+
+          {result.matched.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: '#1a7a4a', marginBottom: 8 }}>✅ Matched keywords (${result.matched.length})</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {result.matched.map((kw: string) => (
+                  <span key={kw} style={{ background: '#e8f5ee', color: '#1a7a4a', padding: '4px 10px', borderRadius: 16, fontSize: 12, fontWeight: 500 }}>
+                    {kw}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.missing.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: '#ef4444', marginBottom: 8 }}>❌ Missing keywords (${result.missing.length})</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {result.missing.map((kw: string) => (
+                  <span key={kw} style={{ background: '#fef2f2', color: '#ef4444', padding: '4px 10px', borderRadius: 16, fontSize: 12, fontWeight: 500 }}>
+                    {kw}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.suggestions.length > 0 && (
+            <div>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: text, marginBottom: 8 }}>💡 Suggestions</h3>
+              <ul style={{ margin: 0, paddingLeft: 18, color: muted, fontSize: 13, lineHeight: 1.8 }}>
+                {result.suggestions.map((s: string, i: number) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
