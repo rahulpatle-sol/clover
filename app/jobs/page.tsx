@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
-import { Search, Bookmark, BookmarkCheck, ExternalLink, Zap, MapPin, Clock, DollarSign, TrendingUp, Filter, ChevronDown } from 'lucide-react'
+import { Search, Bookmark, BookmarkCheck, ExternalLink, Zap, MapPin, Clock, DollarSign, TrendingUp, Filter, ChevronDown, Flame } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import SalaryInsights from '@/components/SalaryInsights'
 
@@ -314,7 +314,9 @@ export default function JobsPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <h3 style={{ fontSize: 16, fontWeight: 700, color: text }}>{job.title}</h3>
                           {isHot(job.postedAt) && (
-                            <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: 11, padding: '2px 10px', borderRadius: 20, fontWeight: 600 }}>🔥 Hot</span>
+                            <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: 11, padding: '2px 10px', borderRadius: 20, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <Flame size={10} style={{ color: '#dc2626' }} /> Hot
+                            </span>
                           )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
@@ -381,7 +383,9 @@ export default function JobsPage() {
 
         {!loading && filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: 60 }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🔍</div>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>
+              <Search size={48} color={muted} />
+            </div>
             <p style={{ color: muted }}>No jobs found. Try a different search.</p>
           </div>
         )}
@@ -475,7 +479,7 @@ export default function JobsPage() {
                   style={{ width: '100%', padding: '10px 14px', border: `1px solid ${border}`, borderRadius: 8, fontSize: 13, background: darkMode ? '#0f172a' : cardBg, color: text, outline: 'none', resize: 'vertical', lineHeight: 1.6 }} />
               </div>
               <div style={{ background: '#e8f5ee', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1a7a4a', marginBottom: 20 }}>
-                📧 Your resume will be linked + a CC copy goes to your email
+                <Mail size={14} style={{ marginRight: 6, color: '#1a7a4a' }} /> Your resume will be linked + a CC copy goes to your email
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button onClick={() => setApplyModal(null)} style={{ padding: '9px 18px', border: `1px solid ${border}`, borderRadius: 8, cursor: 'pointer', background: 'none', color: text, fontSize: 14 }}>Cancel</button>

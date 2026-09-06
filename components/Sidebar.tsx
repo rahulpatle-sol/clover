@@ -1,4 +1,5 @@
 'use client'
+
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -12,7 +13,8 @@ import {
   Settings,
   LogOut,
   Clover,
-  ChevronRight
+  ChevronRight,
+  Mail,
 } from 'lucide-react'
 
 const links = [
@@ -24,6 +26,8 @@ const links = [
   { href: '/profile', icon: User, label: 'Profile' },
   { href: '/admin', icon: Settings, label: 'Admin', adminOnly: true },
 ]
+
+const sidebarWidth = 240
 
 export default function Sidebar({ userName, isAdmin }: { userName: string; isAdmin?: boolean }) {
   const pathname = usePathname()
@@ -39,17 +43,17 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
 
   return (
     <aside style={{
-      width: 260,
+      width: sidebarWidth,
       minHeight: '100vh',
       background: '#ffffff',
-      borderRight: '1px solid #eef0f2',
+      borderRight: '1px solid #e2e8f0',
       display: 'flex',
       flexDirection: 'column',
       padding: '24px 16px',
       position: 'sticky',
       top: 0,
       height: '100vh',
-      boxShadow: '4px 0 24px -8px rgba(0, 0, 0, 0.03)',
+      boxShadow: '4px 0 24px -8px rgba(0, 0, 0, 0.08)',
     }}>
       <Link
         href="/"
@@ -59,7 +63,6 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
           gap: 10,
           textDecoration: 'none',
           marginBottom: 32,
-          padding: '0 8px',
         }}
       >
         <Clover
@@ -70,8 +73,8 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
           }}
         />
         <span style={{
-          fontSize: 20,
-          fontWeight: 800,
+          fontSize: 17,
+          fontWeight: 700,
           color: '#0f172a',
           letterSpacing: '-0.02em',
         }}>
@@ -90,29 +93,28 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
-                padding: '12px 14px',
-                borderRadius: 12,
+                gap: 10,
+                padding: '10px 14px',
+                borderRadius: 10,
                 textDecoration: 'none',
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: active ? 600 : 500,
-                background: active ? '#f0fdf4' : 'transparent',
-                color: active ? '#15803d' : '#475569',
-                border: active ? '1px solid #dcfce7' : 'none',
-                boxShadow: active ? '0 2px 8px -2px rgba(26, 122, 74, 0.15)' : 'none',
-                transition: 'all 0.18s ease',
+                background: active ? '#e8f5ee' : 'transparent',
+                color: active ? '#1a7a4a' : '#64748b',
+                border: active ? '1px solid #1a7a4a' : 'none',
+                transition: 'all 0.15s ease',
                 position: 'relative',
               }}
               onMouseEnter={(e) => {
                 if (!active) {
-                  e.currentTarget.style.background = '#f8fafc'
+                  e.currentTarget.style.background = '#f1f5f9'
                   e.currentTarget.style.color = '#1e293b'
                 }
               }}
               onMouseLeave={(e) => {
                 if (!active) {
                   e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = '#475569'
+                  e.currentTarget.style.color = '#64748b'
                 }
               }}
             >
@@ -120,12 +122,12 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 36,
-                height: 36,
-                borderRadius: 10,
+                width: 32,
+                height: 32,
+                borderRadius: 8,
                 background: active ? '#dcfce7' : 'transparent',
-                color: active ? '#15803d' : '#94a3b8',
-                transition: 'all 0.18s ease',
+                color: active ? '#1a7a4a' : '#94a3b8',
+                transition: 'all 0.15s ease',
               }}>
                 <Icon size={18} strokeWidth={2.2} />
               </div>
@@ -134,9 +136,9 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
               </span>
               {active && (
                 <ChevronRight
-                  size={16}
+                  size={14}
                   style={{
-                    color: '#15803d',
+                    color: '#1a7a4a',
                     flexShrink: 0,
                     marginLeft: 'auto',
                   }}
@@ -148,7 +150,7 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
       </nav>
 
       <div style={{
-        borderTop: '1px solid #eef0f2',
+        borderTop: '1px solid #e2e8f0',
         paddingTop: 20,
         marginTop: 'auto',
       }}>
@@ -158,18 +160,18 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
           gap: 12,
           padding: '10px 12px',
           marginBottom: 8,
-          borderRadius: 12,
+          borderRadius: 10,
           background: '#f8fafc',
         }}>
           <div style={{
             width: 40,
             height: 40,
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #1a7a4a 0%, #15803d 100%)',
+            background: 'linear-gradient(135deg, #1a7a4a 0%, #1e40af 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: 700,
             color: '#ffffff',
             boxShadow: '0 2px 8px -2px rgba(26, 122, 74, 0.4)',
@@ -177,7 +179,7 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
             {userName.charAt(0).toUpperCase()}
           </div>
           <span style={{
-            fontSize: 14,
+            fontSize: 13,
             color: '#1e293b',
             fontWeight: 600,
             flex: 1,
@@ -194,16 +196,16 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
             width: '100%',
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
-            padding: '11px 14px',
-            borderRadius: 12,
+            gap: 10,
+            padding: '10px 14px',
+            borderRadius: 10,
             background: 'transparent',
             border: '1px solid #fecaca',
             cursor: 'pointer',
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: 500,
             color: '#dc2626',
-            transition: 'all 0.18s ease',
+            transition: 'all 0.15s ease',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = '#fef2f2'
@@ -218,15 +220,15 @@ export default function Sidebar({ userName, isAdmin }: { userName: string; isAdm
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 34,
-            height: 34,
+            width: 32,
+            height: 32,
             borderRadius: 8,
             background: '#fef2f2',
             color: '#dc2626',
           }}>
-            <LogOut size={16} strokeWidth={2.2} />
+            <LogOut size={15} strokeWidth={2.2} />
           </div>
-          <span style={{ flex: 1 }}>Sign out</span>
+          <span>Sign out</span>
         </button>
       </div>
     </aside>
